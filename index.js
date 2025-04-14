@@ -1,3 +1,4 @@
+// ✅ index.js - Updated Signaling Server
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -7,9 +8,7 @@ const app = express();
 app.use(cors());
 const server = http.createServer(app);
 const io = socketIO(server, {
-  cors: {
-    origin: '*',
-  },
+  cors: { origin: '*' },
 });
 
 const rooms = {};
@@ -19,13 +18,16 @@ io.on('connection', (socket) => {
 
   socket.on('join', ({ room }) => {
     socket.join(room);
-
     const clients = io.sockets.adapter.rooms.get(room);
     const numberOfClients = clients ? clients.size : 0;
-    rooms[socket.id] = room;
 
+    rooms[socket.id] = room;
     console.log(`👤 User ${socket.id} joined room: ${room}`);
-    socket.emit('joined', { isInitiator: numberOfClients === 1 });
+
+    // Inform user if they are the initiator
+    socket.emit('joined', {
+      isInitiator: numberOfClients === 1,
+    });
   });
 
   socket.on('offer', (data) => {
