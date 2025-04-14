@@ -18,9 +18,24 @@ io.on('connection', (socket) => {
   console.log('🔌 A user connected:', socket.id);
 
   socket.on('join', ({ room }) => {
+    const clients = io.sockets.adapter.rooms.get(room);
+    const numClients = clients ? clients.size : 0;
+
     socket.join(room);
     rooms[socket.id] = room;
     console.log(`👤 User ${socket.id} joined room: ${room}`);
+
+    if (numClients === 1) {
+      socket.emit('created', room);
+      console.log(`🛏️ Room ${room} created by ${socket.id}`);
+    } else if (numClients === 2) {
+      socket.emit('joined', room);
+      socket.to(room).emit('ready');
+      console.log(`🔁 Room ${room} ready for peer connection`);
+    } else {
+      socket.emit('full', room);
+      console.log(`🚫 Room ${room} is full`);
+    }
   });
 
   socket.on('offer', (data) => {
