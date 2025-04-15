@@ -1,4 +1,3 @@
-// signaling_server.js
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -14,28 +13,37 @@ const io = socketIO(server, {
   }
 });
 
-const rooms = {}; // Map room names to socket ids
-
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
 
   socket.on('join-room', (room) => {
     console.log(`🚪 ${socket.id} joined room: ${room}`);
     socket.join(room);
-    socket.to(room).emit('peer-connected', socket.id); // Notify others in room
+    
+    // Notify others in the room about the new user
+    socket.to(room).emit('user-connected', socket.id);
+    
+    // Send existing users to the new user
+    io.in(room).fetchSockets().then(sockets => {
+      const otherUsers = sockets.map(s => s.id).filter(id => id !== socket.id);
+      if (otherUsers.length > 0) {
+        socket.emit('existing-users', otherUsers);
+      }
+    });
 
     // Handle relaying ICE candidates
     socket.on('ice-candidate', (data) => {
-      socket.to(room).emit('ice-candidate', {
+      socket.to(data.target).emit('ice-candidate', {
         candidate: data.candidate,
         sender: socket.id,
       });
     });
 
-    // Handle relaying SDP
+    // Handle relaying SDP offers/answers
     socket.on('sdp', (data) => {
-      socket.to(room).emit('sdp', {
+      socket.to(data.target).emit('sdp', {
         description: data.description,
+        type: data.type,
         sender: socket.id,
       });
     });
@@ -43,7 +51,7 @@ io.on('connection', (socket) => {
     // On disconnect
     socket.on('disconnect', () => {
       console.log(`❌ ${socket.id} disconnected from room: ${room}`);
-      socket.to(room).emit('peer-disconnected', socket.id);
+      socket.to(room).emit('user-disconnected', socket.id);
     });
   });
 });
