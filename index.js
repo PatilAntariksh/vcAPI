@@ -7,9 +7,9 @@ const app = express();
 app.use(cors());
 
 // ✅ Replace with your actual 100ms API key and secret
-const HMS_API_KEY = "REPLACE_ME";
-const HMS_API_SECRET = "REPLACE_ME";
-const SUB_DOMAIN = "REPLACE_ME"; // e.g., 'myapp' if your 100ms subdomain is myapp.app.100ms.live
+const HMS_API_KEY = "67feda414944f067313a9702";
+const HMS_API_SECRET = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
+const SUB_DOMAIN = "mind-videoconf-1814"; // e.g., 'myapp' if your 100ms subdomain is myapp.app.100ms.live
 
 app.get("/get-token", async (req, res) => {
   const { user_id, room_id, role = "host" } = req.query;
