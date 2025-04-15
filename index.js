@@ -6,6 +6,28 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
+// Add these root route handlers
+app.get('/', (req, res) => {
+  res.status(200).send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>WebRTC Signaling Server</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        .status { color: #4CAF50; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <h1>WebRTC Signaling Server</h1>
+      <p class="status">🟢 Server is running</p>
+      <p>Connected clients: ${io.engine.clientsCount}</p>
+      <p>Active rooms: ${rooms.size}</p>
+    </body>
+    </html>
+  `);
+})
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: Date.now() });
