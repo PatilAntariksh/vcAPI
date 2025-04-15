@@ -1,4 +1,4 @@
-// index.js
+// signaling_server.js
 const express = require('express');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -6,51 +6,49 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-const server = http.createServer(app);
-const io = socketIO(server, { cors: { origin: '*' } });
 
-const rooms = {};
+const server = http.createServer(app);
+const io = socketIO(server, {
+  cors: {
+    origin: '*'
+  }
+});
+
+const rooms = {}; // Map room names to socket ids
 
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
 
-  socket.on('join', ({ room }) => {
+  socket.on('join-room', (room) => {
+    console.log(`🚪 ${socket.id} joined room: ${room}`);
     socket.join(room);
-    if (!rooms[room]) rooms[room] = [];
-    rooms[room].push(socket.id);
+    socket.to(room).emit('peer-connected', socket.id); // Notify others in room
 
-    const isInitiator = rooms[room].length === 1;
-    socket.emit('joined', { isInitiator });
+    // Handle relaying ICE candidates
+    socket.on('ice-candidate', (data) => {
+      socket.to(room).emit('ice-candidate', {
+        candidate: data.candidate,
+        sender: socket.id,
+      });
+    });
 
-    if (!isInitiator && rooms[room].length === 2) {
-      const initiatorSocketId = rooms[room][0];
-      io.to(initiatorSocketId).emit('ready');
-    }
+    // Handle relaying SDP
+    socket.on('sdp', (data) => {
+      socket.to(room).emit('sdp', {
+        description: data.description,
+        sender: socket.id,
+      });
+    });
 
-    console.log(`👥 Room "${room}" has ${rooms[room].length} user(s)`);
-  });
-
-  socket.on('offer', (data) => {
-    socket.to(data.room).emit('offer', data);
-  });
-
-  socket.on('answer', (data) => {
-    socket.to(data.room).emit('answer', data);
-  });
-
-  socket.on('ice-candidate', (data) => {
-    socket.to(data.room).emit('ice-candidate', data);
-  });
-
-  socket.on('disconnect', () => {
-    for (const room in rooms) {
-      rooms[room] = rooms[room].filter((id) => id !== socket.id);
-      if (rooms[room].length === 0) delete rooms[room];
-    }
-    console.log(`❌ Disconnected: ${socket.id}`);
+    // On disconnect
+    socket.on('disconnect', () => {
+      console.log(`❌ ${socket.id} disconnected from room: ${room}`);
+      socket.to(room).emit('peer-disconnected', socket.id);
+    });
   });
 });
 
-server.listen(10000, () => {
-  console.log('✅ Signaling server running on port 10000');
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+  console.log(`✅ Signaling server running on port ${PORT}`);
 });
