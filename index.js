@@ -1,48 +1,38 @@
-// File: index.js (Backend for 100ms.live token generation)
-
-const express = require("express");
-const cors = require("cors");
-const jwt = require("jsonwebtoken");
-require("dotenv").config();
+const express = require('express');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
-// Replace with your actual 100ms credentials from the dashboard
-const APP_ACCESS_KEY = "67feda414944f067313a9702";
-const APP_SECRET = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
-const SUBDOMAIN = "mind-videoconf-1814";
+const PORT = process.env.PORT || 10000;
 
-// Helper to generate token
-function generateToken({ user_id, room_id }) {
+const accessKey = "67feda414944f067313a9702";
+const secret = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
+
+app.get("/token", (req, res) => {
+  const user_id = req.query.user_id || "user_" + Math.floor(Math.random() * 1000);
+  const room_id = req.query.room_id;
+
+  if (!room_id) return res.status(400).send({ error: "room_id is required" });
+
   const payload = {
-    access_key: APP_ACCESS_KEY,
-    room_id: room_id,
-    user_id: user_id,
-    role: "host",
+    access_key: accessKey,
     type: "app",
     version: 2,
     iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
+    nbf: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+    room_id: room_id,
+    user_id: user_id,
+    role: "host"
   };
 
-  return jwt.sign(payload, APP_SECRET);
-}
+  const token = jwt.sign(payload, secret, { algorithm: "HS256" });
 
-app.get("/get-token", (req, res) => {
-  const room_id = req.query.room;
-  const user_id = req.query.user || "user_" + Date.now();
-
-  if (!room_id) {
-    return res.status(400).json({ error: "Room name is required." });
-  }
-
-  const token = generateToken({ user_id, room_id });
-  return res.json({ token });
+  res.send({ token, user_id, room_id });
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ 100ms token server running at http://localhost:${PORT}`);
+  console.log(`✅ HMS token server running on http://localhost:${PORT}`);
 });
