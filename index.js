@@ -1,76 +1,56 @@
-// jitsi_like_signaling_server.js
-
+// index.js
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIO = require('socket.io');
 const cors = require('cors');
 
 const app = express();
+app.use(cors());
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*'
-  }
-});
+const io = socketIO(server, { cors: { origin: '*' } });
 
-const rooms = {}; // roomName: Set<socket.id>
-const peers = {}; // socket.id: roomName
+const rooms = {};
 
 io.on('connection', (socket) => {
-  console.log(`📡 New connection: ${socket.id}`);
-  socket.emit('me', socket.id); // Mimic Jitsi-style unique user ID assignment
+  console.log('🔌 User connected:', socket.id);
 
-  socket.on('join-room', ({ roomId }) => {
-    if (!rooms[roomId]) rooms[roomId] = new Set();
+  socket.on('join', ({ room }) => {
+    socket.join(room);
+    if (!rooms[room]) rooms[room] = [];
+    rooms[room].push(socket.id);
 
-    rooms[roomId].add(socket.id);
-    peers[socket.id] = roomId;
+    const isInitiator = rooms[room].length === 1;
+    socket.emit('joined', { isInitiator });
 
-    console.log(`👥 ${socket.id} joined room ${roomId}`);
+    if (!isInitiator && rooms[room].length === 2) {
+      const initiatorSocketId = rooms[room][0];
+      io.to(initiatorSocketId).emit('ready');
+    }
 
-    // Notify other users in the room
-    rooms[roomId].forEach((peerId) => {
-      if (peerId !== socket.id) {
-        socket.to(peerId).emit('user-connected', socket.id);
-      }
-    });
+    console.log(`👥 Room "${room}" has ${rooms[room].length} user(s)`);
   });
 
-  socket.on('send-offer', ({ targetId, offer }) => {
-    socket.to(targetId).emit('receive-offer', {
-      senderId: socket.id,
-      offer,
-    });
+  socket.on('offer', (data) => {
+    socket.to(data.room).emit('offer', data);
   });
 
-  socket.on('send-answer', ({ targetId, answer }) => {
-    socket.to(targetId).emit('receive-answer', {
-      senderId: socket.id,
-      answer,
-    });
+  socket.on('answer', (data) => {
+    socket.to(data.room).emit('answer', data);
   });
 
-  socket.on('ice-candidate', ({ targetId, candidate }) => {
-    socket.to(targetId).emit('ice-candidate', {
-      senderId: socket.id,
-      candidate,
-    });
+  socket.on('ice-candidate', (data) => {
+    socket.to(data.room).emit('ice-candidate', data);
   });
 
   socket.on('disconnect', () => {
-    const roomId = peers[socket.id];
-    if (roomId && rooms[roomId]) {
-      rooms[roomId].delete(socket.id);
-      if (rooms[roomId].size === 0) delete rooms[roomId];
+    for (const room in rooms) {
+      rooms[room] = rooms[room].filter((id) => id !== socket.id);
+      if (rooms[room].length === 0) delete rooms[room];
     }
-
-    delete peers[socket.id];
-    io.emit('user-disconnected', socket.id);
-    console.log(`❌ ${socket.id} disconnected`);
+    console.log(`❌ Disconnected: ${socket.id}`);
   });
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => {
-  console.log(`✅ Jitsi-style signaling server running on port ${PORT}`);
+server.listen(10000, () => {
+  console.log('✅ Signaling server running on port 10000');
 });
