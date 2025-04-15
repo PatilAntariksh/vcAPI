@@ -1,50 +1,48 @@
-// server.js - 100ms token generator ready for Render hosting
+// File: index.js (Backend for 100ms.live token generation)
+
 const express = require("express");
 const cors = require("cors");
-const axios = require("axios");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
 app.use(cors());
 
-// ✅ Replace with your actual 100ms API key and secret
-const HMS_API_KEY = "67feda414944f067313a9702";
-const HMS_API_SECRET = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
-const SUB_DOMAIN = "mind-videoconf-1814"; // e.g., 'myapp' if your 100ms subdomain is myapp.app.100ms.live
+// Replace with your actual 100ms credentials from the dashboard
+const APP_ACCESS_KEY = "67feda414944f067313a9702";
+const APP_SECRET = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
+const SUBDOMAIN = "mind-videoconf-1814";
 
-app.get("/get-token", async (req, res) => {
-  const { user_id, room_id, role = "host" } = req.query;
+// Helper to generate token
+function generateToken({ user_id, room_id }) {
+  const payload = {
+    access_key: APP_ACCESS_KEY,
+    room_id: room_id,
+    user_id: user_id,
+    role: "host",
+    type: "app",
+    version: 2,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
+  };
 
-  if (!user_id || !room_id) {
-    return res.status(400).json({ error: "user_id and room_id required" });
+  return jwt.sign(payload, APP_SECRET);
+}
+
+app.get("/get-token", (req, res) => {
+  const room_id = req.query.room;
+  const user_id = req.query.user || "user_" + Date.now();
+
+  if (!room_id) {
+    return res.status(400).json({ error: "Room name is required." });
   }
 
-  try {
-    const response = await axios.post(
-      `https://prod-in.100ms.live/hmsapi/${SUB_DOMAIN}.app.100ms.live/api/token`,
-      {
-        user_id,
-        role,
-        room_id,
-      },
-      {
-        auth: {
-          username: HMS_API_KEY,
-          password: HMS_API_SECRET,
-        },
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    res.json({ token: response.data.token });
-  } catch (error) {
-    console.error("Failed to fetch token", error);
-    res.status(500).json({ error: "Token fetch failed" });
-  }
+  const token = generateToken({ user_id, room_id });
+  return res.json({ token });
 });
 
-const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`✅ 100ms Token Server running on http://localhost:${PORT}`);
+  console.log(`✅ 100ms token server running at http://localhost:${PORT}`);
 });
