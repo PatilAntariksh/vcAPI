@@ -1,38 +1,39 @@
-const express = require('express');
-const cors = require('cors');
-const jwt = require('jsonwebtoken');
+// 📁 index.js
+const express = require("express");
+const cors = require("cors");
+const jwt = require("jsonwebtoken");
+require("dotenv\config");
 
 const app = express();
 app.use(cors());
 
 const PORT = process.env.PORT || 10000;
-
-const accessKey = "67feda414944f067313a9702";
-const secret = "BnX7u-WuK4nOi8Hkdw5T3n7zuz9P1GbJmlZvXkmJ_u-65e5SZnjaa8Sw2gdeXy90Zgh16xj6iLiagJ37VC5roGxRKrGfyVTB1M41A_OBJlR6KA5ezVrfE9APvt0huJ_PELppe3ZZrGMsrCOjW4tdUYIibVnbGg4TsCOsTUwzBXg=";
+const APP_ID = process.env.JITSI_APP_ID;
+const PRIVATE_KEY = process.env.JITSI_PRIVATE_KEY.replace(/\\n/g, "\n");
+const JITSI_DOMAIN = process.env.JITSI_DOMAIN || "meet.jit.si";
 
 app.get("/token", (req, res) => {
-  const user_id = req.query.user_id || "user_" + Math.floor(Math.random() * 1000);
-  const room_id = req.query.room_id;
-
-  if (!room_id) return res.status(400).send({ error: "room_id is required" });
+  const { room, name } = req.query;
+  if (!room || !name) return res.status(400).json({ error: "Missing room or name" });
 
   const payload = {
-    access_key: accessKey,
-    type: "app",
-    version: 2,
-    iat: Math.floor(Date.now() / 1000),
-    nbf: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
-    room_id: room_id,
-    user_id: user_id,
-    role: "host"
+    aud: "jitsi",
+    iss: APP_ID,
+    sub: JITSI_DOMAIN,
+    room: room,
+    context: {
+      user: {
+        name: name,
+        id: Math.random().toString(36).substring(2, 15)
+      }
+    },
+    exp: Math.floor(Date.now() / 1000) + 60 * 60,
   };
 
-  const token = jwt.sign(payload, secret, { algorithm: "HS256" });
-
-  res.send({ token, user_id, room_id });
+  const token = jwt.sign(payload, PRIVATE_KEY, { algorithm: "RS256" });
+  res.json({ token });
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ HMS token server running on http://localhost:${PORT}`);
+  console.log(`✅ JaaS Token server running on http://localhost:${PORT}`);
 });
