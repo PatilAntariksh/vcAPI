@@ -1,74 +1,57 @@
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: { 
-    origin: "*",
-    methods: ["GET", "POST"]
+
+const io = new Server(server, {
+  cors: {
+    origin: "*",  // allow all origins for testing
   }
 });
 
-let rooms = {}; // Track users per room
+const rooms = {}; // { roomId: [socketId1, socketId2] }
 
 io.on('connection', (socket) => {
-  console.log(`New connection: ${socket.id}`);
+  console.log('User connected:', socket.id);
 
-  socket.on('join', (room) => {
-    console.log(`${socket.id} joining room: ${room}`);
-    socket.join(room);
+  socket.on('join-room', ({ roomId, userId }) => {
+    console.log(`${userId} is joining room: ${roomId}`);
+    socket.join(roomId);
 
-    if (!rooms[room]) rooms[room] = [];
-    rooms[room].push(socket.id);
+    if (!rooms[roomId]) rooms[roomId] = [];
+    rooms[roomId].push({ socketId: socket.id, userId });
 
-    // First user creates the room
-    if (rooms[room].length === 1) {
-      console.log(`Room created: ${room}`);
-      socket.emit('room_created');
-    } else if (rooms[room].length === 2) {
-      // Second user joins and tells the first user to start the call
-      console.log(`Room joined: ${room}`);
-      socket.emit('room_joined');
-      socket.to(room).emit('ready'); // notify caller to send offer
-    } else {
-      // Room is full
-      console.log(`Room ${room} is full`);
-      socket.emit('room_full');
-    }
-
-    console.log(`Current room state: ${JSON.stringify(rooms)}`);
+    // Notify other users in the room
+    socket.to(roomId).emit('user-joined', { userId, socketId: socket.id });
   });
 
-  socket.on('offer', (data) => {
-    console.log(`Offer received in room ${data.room}`);
-    socket.to(data.room).emit('offer', data);
+  socket.on('offer', ({ offer, to }) => {
+    io.to(to).emit('offer', { offer, from: socket.id });
   });
 
-  socket.on('answer', (data) => {
-    console.log(`Answer received in room ${data.room}`);
-    socket.to(data.room).emit('answer', data);
+  socket.on('answer', ({ answer, to }) => {
+    io.to(to).emit('answer', { answer, from: socket.id });
   });
 
-  socket.on('candidate', (data) => {
-    console.log(`Candidate received in room ${data.room}`);
-    socket.to(data.room).emit('candidate', data);
+  socket.on('ice-candidate', ({ candidate, to }) => {
+    io.to(to).emit('ice-candidate', { candidate, from: socket.id });
   });
 
   socket.on('disconnect', () => {
-    console.log(`Disconnected: ${socket.id}`);
-    // Clean up rooms
-    for (const room in rooms) {
-      rooms[room] = rooms[room].filter(id => id !== socket.id);
-      if (rooms[room].length === 0) {
-        delete rooms[room];
-        console.log(`Room ${room} deleted (empty)`);
+    console.log('User disconnected:', socket.id);
+    // Remove from rooms
+    for (const roomId in rooms) {
+      rooms[roomId] = rooms[roomId].filter(u => u.socketId !== socket.id);
+      if (rooms[roomId].length === 0) {
+        delete rooms[roomId];
       }
     }
-    console.log(`Updated room state: ${JSON.stringify(rooms)}`);
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Signaling server running on ${PORT}`));
+server.listen(PORT, () => {
+  console.log('Signaling server running on port', PORT);
+});
